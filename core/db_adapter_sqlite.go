@@ -61,4 +61,7 @@ func (a *SQLiteDBAdapter) CreateIndexQuery(index Index) (string, error) {
 func (a *SQLiteDBAdapter) DropIndexQuery(schemaName string, indexName string) (string, error) {
 	return fmt.Sprintf("DROP INDEX IF EXISTS `%s`", indexName), nil
 }
-	
+
+func (a *SQLiteDBAdapter) FormatDateQuery(fieleName, format, as string) string {
+	return fmt.Sprintf("strftime('%s', `%s`) as `%s`", format, fieleName, as)
+}

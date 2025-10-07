@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/pocketbase/dbx"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
@@ -38,8 +39,11 @@ type LogsStatsItem struct {
 func (app *BaseApp) LogsStats(expr dbx.Expression) ([]*LogsStatsItem, error) {
 	result := []*LogsStatsItem{}
 
+	adapter := GetDBAdapter(dbadapter.GetDriverNameFromDB(), app)
+	dateQuery := adapter.FormatDateQuery("created", "%Y-%m-%d %H:00:00", "date")
+
 	query := app.LogQuery().
-		Select("count(id) as total", "strftime('%Y-%m-%d %H:00:00', created) as date").
+		Select("count(id) as total", dateQuery).
 		GroupBy("date")
 
 	if expr != nil {

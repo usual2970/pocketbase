@@ -51,3 +51,7 @@ func (a *PostgreSQLDBAdapter) CreateIndexQuery(index Index) (string, error) {
 func (a *PostgreSQLDBAdapter) DropIndexQuery(schemaName string, indexName string) (string, error) {
 	return fmt.Sprintf("DROP INDEX IF EXISTS \"%s\"", indexName), nil
 }
+
+func (a *PostgreSQLDBAdapter) FormatDateQuery(fieleName, format, as string) string {
+	return fmt.Sprintf("DATE_TRUNC('%s', \"%s\") as \"%s\"", format, fieleName, as)
+}

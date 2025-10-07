@@ -23,6 +23,7 @@ type DBAdapter interface {
 	CreateTableQuery(table Table) (string, error)
 	CreateIndexQuery(index Index) (string, error)
 	DropIndexQuery(schemaName string, indexName string) (string, error)
+	FormatDateQuery(fieleName, format, as string) string
 }
 
 // GetDBAdapter returns the appropriate database adapter based on the driver name

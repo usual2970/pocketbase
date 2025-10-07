@@ -79,3 +79,7 @@ func (a *MySQLDBAdapter) CreateIndexQuery(index Index) (string, error) {
 func (a *MySQLDBAdapter) DropIndexQuery(schemaName string, indexName string) (string, error) {
 	return fmt.Sprintf("ALTER TABLE `%s` DROP INDEX `%s`", schemaName, indexName), nil
 }
+
+func (a *MySQLDBAdapter) FormatDateQuery(fieleName, format, as string) string {
+	return fmt.Sprintf("DATE_FORMAT(`%s`, '%s') as `%s`", fieleName, format, as)
+}
