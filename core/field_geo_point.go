@@ -5,6 +5,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core/validators"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
@@ -103,6 +104,9 @@ func (f *GeoPointField) SetHidden(hidden bool) {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *GeoPointField) ColumnType(app App) string {
+	if dbadapter.IsMySQL() {
+		return "VARCHAR(1024) DEFAULT '{\"lon\":0,\"lat\":0}' NOT NULL"
+	}
 	return `JSON DEFAULT '{"lon":0,"lat":0}' NOT NULL`
 }
 

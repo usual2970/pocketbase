@@ -1,15 +1,18 @@
 package dbutils
 
 import (
+	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/tools/tokenizer"
 )
 
 var (
-	indexRegex       = regexp.MustCompile(`(?im)create\s+(unique\s+)?\s*index\s*(if\s+not\s+exists\s+)?(\S*)\s+on\s+(\S*)\s*\(([\s\S]*)\)(?:\s*where\s+([\s\S]*))?`)
-	indexColumnRegex = regexp.MustCompile(`(?im)^([\s\S]+?)(?:\s+collate\s+([\w]+))?(?:\s+(asc|desc))?$`)
+	indexRegex             = regexp.MustCompile(`(?im)create\s+(unique\s+)?\s*index\s*(if\s+not\s+exists\s+)?(\S*)\s+on\s+(\S*)\s*\(([\s\S]*)\)(?:\s*where\s+([\s\S]*))?`)
+	indexColumnRegex       = regexp.MustCompile(`(?im)^([\s\S]+?)(?:\s+collate\s+([\w]+))?(?:\s+(asc|desc))?$`)
+	indexColumnLengthRegex = regexp.MustCompile(`(?im)^([\s\S]+?)\(([\d]+)\)$`)
 )
 
 // IndexColumn represents a single parsed SQL index column.
@@ -17,6 +20,7 @@ type IndexColumn struct {
 	Name    string `json:"name"` // identifier or expression
 	Collate string `json:"collate"`
 	Sort    string `json:"sort"`
+	Length  int    `json:"length"`
 }
 
 // Index represents a single parsed SQL CREATE INDEX expression.
@@ -77,6 +81,7 @@ func (idx Index) Build() string {
 
 	var hasCol bool
 	for _, col := range idx.Columns {
+
 		trimmedColName := strings.TrimSpace(col.Name)
 		if trimmedColName == "" {
 			continue
@@ -88,12 +93,19 @@ func (idx Index) Build() string {
 
 		if strings.Contains(col.Name, "(") || strings.Contains(col.Name, " ") {
 			// most likely an expression
-			str.WriteString(trimmedColName)
+			if col.Length > 0 {
+				str.WriteString(fmt.Sprintf("%s(%d)", trimmedColName, col.Length))
+			} else {
+				str.WriteString(trimmedColName)
+			}
 		} else {
 			// regular identifier
 			str.WriteString("`")
 			str.WriteString(trimmedColName)
 			str.WriteString("`")
+			if col.Length > 0 {
+				str.WriteString(fmt.Sprintf("(%d)", col.Length))
+			}
 		}
 
 		if col.Collate != "" {
@@ -179,10 +191,18 @@ func ParseIndex(createIndexExpr string) Index {
 			continue
 		}
 
+		lengthMatches := indexColumnLengthRegex.FindStringSubmatch(trimmedName)
+		length := 0
+		if len(lengthMatches) == 3 {
+			trimmedName = lengthMatches[1]
+			length, _ = strconv.Atoi(strings.TrimSpace(lengthMatches[2]))
+		}
+
 		result.Columns = append(result.Columns, IndexColumn{
 			Name:    trimmedName,
 			Collate: strings.TrimSpace(colMatches[2]),
 			Sort:    strings.ToUpper(colMatches[3]),
+			Length:  length,
 		})
 	}
 

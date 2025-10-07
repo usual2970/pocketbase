@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/pocketbase/dbx"
-	"github.com/pocketbase/pocketbase/tools/inflector"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -255,7 +254,8 @@ func (s *Provider) Exec(items any) (*Result, error) {
 		if len(sortField.Name) > MaxSortFieldLength {
 			return nil, ErrSortFieldLengthLimit
 		}
-		expr, err := sortField.BuildExpr(s.fieldResolver)
+		searchAdapter := GetSearchAdapter()
+		expr, err := searchAdapter.BuildSortExpr(sortField, s.fieldResolver)
 		if err != nil {
 			return nil, err
 		}
@@ -264,7 +264,7 @@ func (s *Provider) Exec(items any) (*Result, error) {
 			if sortField.Name == rowidSortKey && !strings.Contains(expr, ".") {
 				queryInfo := modelsQuery.Info()
 				if len(queryInfo.From) > 0 {
-					expr = "[[" + inflector.Columnify(queryInfo.From[0]) + "]]." + expr
+					expr = searchAdapter.PrefixTable(queryInfo.From[0], expr)
 				}
 			}
 

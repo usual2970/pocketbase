@@ -7,6 +7,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core/validators"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/spf13/cast"
 )
 
@@ -118,7 +119,12 @@ func (f *NumberField) SetHidden(hidden bool) {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *NumberField) ColumnType(app App) string {
-	return "NUMERIC DEFAULT 0 NOT NULL"
+	switch dbadapter.GetDriverNameFromDB() {
+	case dbadapter.DBTypeMySQL:
+		return "BIGINT DEFAULT 0 NOT NULL"
+	default:
+		return "NUMERIC DEFAULT 0 NOT NULL"
+	}
 }
 
 // PrepareValue implements [Field.PrepareValue] interface method.

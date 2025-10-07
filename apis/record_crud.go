@@ -81,7 +81,7 @@ func recordsList(e *core.RequestEvent) error {
 
 	// use rowid when available to minimize the need of a covering index with the "id" field
 	if !collection.IsView() {
-		searchProvider.CountCol("_rowid_")
+		searchProvider.CountCol("id")
 	}
 
 	records := []*core.Record{}

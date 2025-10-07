@@ -2,9 +2,12 @@ package core
 
 import (
 	"context"
+	"database/sql/driver"
+	"errors"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core/validators"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
@@ -106,7 +109,31 @@ func (f *AutodateField) SetHidden(hidden bool) {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *AutodateField) ColumnType(app App) string {
-	return "TEXT DEFAULT '' NOT NULL" // note: sqlite doesn't allow adding new columns with non-constant defaults
+	switch dbadapter.GetDriverNameFromDB() {
+	case dbadapter.DBTypeMySQL:
+		return "DATETIME DEFAULT NULL"
+	case dbadapter.DBTypePostgreSQL:
+		return "TIMESTAMP DEFAULT NULL"
+	default:
+		return "TEXT DEFAULT '' NOT NULL"
+	}
+}
+
+// DriverValue implements the [DriverValuer] interface.
+func (f *AutodateField) DriverValue(record *Record) (driver.Value, error) {
+	switch dbadapter.GetDriverNameFromDB() {
+	case dbadapter.DBTypeMySQL:
+		raw, ok := record.GetRaw(f.Name).(types.DateTime)
+
+		if !ok {
+			return "", errors.New("datetime is not a datetime")
+		}
+
+		return raw.Time().Format("2006-01-02 15:04:05"), nil
+
+	default:
+		return record.GetRaw(f.Name), nil
+	}
 }
 
 // PrepareValue implements [Field.PrepareValue] interface method.

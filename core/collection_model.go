@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/pocketbase/dbx"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/dbutils"
 	"github.com/pocketbase/pocketbase/tools/hook"
 	"github.com/pocketbase/pocketbase/tools/security"
@@ -652,9 +653,24 @@ func (m *Collection) AddIndex(name string, unique bool, columnsExpr string, optW
 	idx.WriteString("ON `")
 	idx.WriteString(m.Name)
 	idx.WriteString("` (")
-	idx.WriteString(columnsExpr)
+
+	driverName := dbadapter.GetDriverNameFromDB()
+	switch driverName {
+	case "mysql":
+		columns := strings.Split(columnsExpr, ",")
+		columnsExprList := make([]string, 0, len(columns))
+		for _, column := range columns {
+			columnsExprList = append(columnsExprList, fmt.Sprintf("%s(191)", column))
+		}
+		idx.WriteString(strings.Join(columnsExprList, ", "))
+	case "postgres":
+		idx.WriteString(columnsExpr)
+	default:
+		idx.WriteString(columnsExpr)
+	}
+
 	idx.WriteString(")")
-	if optWhereExpr != "" {
+	if optWhereExpr != "" && driverName != "mysql" {
 		idx.WriteString(" WHERE ")
 		idx.WriteString(optWhereExpr)
 	}
@@ -990,12 +1006,7 @@ func (c *Collection) initTokenKeyField() {
 
 	// ensure that there is a unique index for the field
 	if _, ok := dbutils.FindSingleColumnUniqueIndex(c.Indexes, FieldNameTokenKey); !ok {
-		c.Indexes = append(c.Indexes, fmt.Sprintf(
-			"CREATE UNIQUE INDEX `%s` ON `%s` (`%s`)",
-			c.fieldIndexName(FieldNameTokenKey),
-			c.Name,
-			FieldNameTokenKey,
-		))
+		c.AddIndex(c.fieldIndexName(FieldNameTokenKey), true, FieldNameTokenKey, "")
 	}
 }
 
@@ -1016,13 +1027,7 @@ func (c *Collection) initEmailField() {
 
 	// ensure that there is a unique index for the email field
 	if _, ok := dbutils.FindSingleColumnUniqueIndex(c.Indexes, FieldNameEmail); !ok {
-		c.Indexes = append(c.Indexes, fmt.Sprintf(
-			"CREATE UNIQUE INDEX `%s` ON `%s` (`%s`) WHERE `%s` != ''",
-			c.fieldIndexName(FieldNameEmail),
-			c.Name,
-			FieldNameEmail,
-			FieldNameEmail,
-		))
+		c.AddIndex(c.fieldIndexName(FieldNameEmail), true, FieldNameEmail, "`"+FieldNameEmail+"` != ''")
 	}
 }
 

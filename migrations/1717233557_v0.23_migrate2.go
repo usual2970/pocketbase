@@ -8,7 +8,16 @@ import (
 
 func init() {
 	core.SystemMigrations.Register(func(txApp core.App) error {
-		_, err := txApp.DB().NewQuery("CREATE INDEX IF NOT EXISTS idx__collections_type on {{_collections}} ([[type]]);").Execute()
+		sql, err := txApp.DBAdapter().CreateIndexQuery(core.Index{
+			Name:      "idx__collections_type",
+			TableName: "_collections",
+			Columns:   []string{"type"},
+			Unique:    false,
+		})
+		if err != nil {
+			return err
+		}
+		_, err = txApp.DB().NewQuery(sql).Execute()
 		if err != nil {
 			return err
 		}

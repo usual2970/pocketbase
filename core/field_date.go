@@ -5,6 +5,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core/validators"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
 
@@ -103,7 +104,14 @@ func (f *DateField) SetHidden(hidden bool) {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *DateField) ColumnType(app App) string {
-	return "TEXT DEFAULT '' NOT NULL"
+	switch dbadapter.GetDriverNameFromDB() {
+	case dbadapter.DBTypeMySQL:
+		return "DATETIME DEFAULT NULL"
+	case dbadapter.DBTypePostgreSQL:
+		return "TIMESTAMP DEFAULT NULL"
+	default:
+		return "TEXT DEFAULT '' NOT NULL"
+	}
 }
 
 // PrepareValue implements [Field.PrepareValue] interface method.

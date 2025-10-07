@@ -26,6 +26,18 @@ import (
 // create common and pluggable helpers and methods that doesn't rely
 // on a specific wrapped app struct (hence the large interface size).
 type App interface {
+	// DBAdapter returns the database adapter for the main database.
+	//
+	// The adapter provides database-specific operations and SQL generation
+	// for the current database type (SQLite, MySQL, PostgreSQL).
+	DBAdapter() DBAdapter
+
+	// AuxDBAdapter returns the database adapter for the auxiliary database.
+	//
+	// The adapter provides database-specific operations and SQL generation
+	// for the current database type (SQLite, MySQL, PostgreSQL).
+	AuxDBAdapter() DBAdapter
+
 	// UnsafeWithoutHooks returns a shallow copy of the current app WITHOUT any registered hooks.
 	//
 	// NB! Note that using the returned app instance may cause data integrity errors

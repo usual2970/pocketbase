@@ -5,6 +5,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core/validators"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/spf13/cast"
 )
 
@@ -110,6 +111,9 @@ func (f *EditorField) SetHidden(hidden bool) {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *EditorField) ColumnType(app App) string {
+	if dbadapter.IsMySQL() {
+		return "LONGTEXT"
+	}
 	return "TEXT DEFAULT '' NOT NULL"
 }
 

@@ -8,6 +8,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/pocketbase/pocketbase/core/validators"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/spf13/cast"
 )
 
@@ -106,6 +107,9 @@ func (f *URLField) SetHidden(hidden bool) {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *URLField) ColumnType(app App) string {
+	if dbadapter.IsMySQL() {
+		return "VARCHAR(1024) DEFAULT '' NOT NULL"
+	}
 	return "TEXT DEFAULT '' NOT NULL"
 }
 

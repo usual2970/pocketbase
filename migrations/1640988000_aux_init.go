@@ -1,25 +1,45 @@
 package migrations
 
 import (
+	"fmt"
+
 	"github.com/pocketbase/pocketbase/core"
 )
 
 func init() {
 	core.SystemMigrations.Add(&core.Migration{
 		Up: func(txApp core.App) error {
-			_, execErr := txApp.AuxDB().NewQuery(`
-				CREATE TABLE IF NOT EXISTS {{_logs}} (
-					[[id]]      TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL,
-					[[level]]   INTEGER DEFAULT 0 NOT NULL,
-					[[message]] TEXT DEFAULT "" NOT NULL,
-					[[data]]    JSON DEFAULT "{}" NOT NULL,
-					[[created]] TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%fZ')) NOT NULL
-				);
+			sql, err := txApp.AuxDBAdapter().CreateTableQuery(core.Table{
+				Table: "_logs",
+				Columns: []core.Field{
+					&core.TextField{
+						Name:       "id",
+						PrimaryKey: true,
+					},
+					&core.TextField{
+						Name: "level",
+					},
+					&core.TextField{
+						Name: "message",
+					},
+					&core.JSONField{
+						Name: "data",
+					},
+					&core.TextField{
+						Name: "created",
+					},
+				},
+				Indexes: []core.Index{
+					{Name: "idx_logs_level", Columns: []string{"level"}},
+					{Name: "idx_logs_message", Columns: []string{"message"}},
+					{Name: "idx_logs_created_hour", Columns: []string{"created"}},
+				},
+			})
 
-				CREATE INDEX IF NOT EXISTS idx_logs_level on {{_logs}} ([[level]]);
-				CREATE INDEX IF NOT EXISTS idx_logs_message on {{_logs}} ([[message]]);
-				CREATE INDEX IF NOT EXISTS idx_logs_created_hour on {{_logs}} (strftime('%Y-%m-%d %H:00:00', [[created]]));
-			`).Execute()
+			if err != nil {
+				return fmt.Errorf("create table query error: %w", err)
+			}
+			_, execErr := txApp.AuxDB().NewQuery(sql).Execute()
 
 			return execErr
 		},

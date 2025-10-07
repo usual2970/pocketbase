@@ -11,6 +11,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/core/validators"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/security"
 	"github.com/spf13/cast"
 )
@@ -91,6 +92,8 @@ type TextField struct {
 	//
 	// A single collection can have only 1 field marked as primary key.
 	PrimaryKey bool `form:"primaryKey" json:"primaryKey"`
+
+	Default string `form:"default" json:"default"`
 }
 
 // Type implements [Field.Type] interface method.
@@ -140,14 +143,32 @@ func (f *TextField) SetHidden(hidden bool) {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *TextField) ColumnType(app App) string {
-	if f.PrimaryKey {
-		// note: the default is just a last resort fallback to avoid empty
-		// string values in case the record was inserted with raw sql and
-		// it is not actually used when operating with the db abstraction
-		return "TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL"
-	}
 
-	return "TEXT DEFAULT '' NOT NULL"
+	switch dbadapter.GetDriverNameFromDB() {
+
+	case dbadapter.DBTypeMySQL:
+		if f.PrimaryKey {
+			return "VARCHAR(64) PRIMARY KEY DEFAULT (CONCAT('r', SUBSTRING(LOWER(HEX(RANDOM_BYTES(7))), 1, 14))) NOT NULL"
+		}
+		if f.Default != "" {
+			return "VARCHAR(1024) DEFAULT '" + f.Default + "' NOT NULL"
+		}
+
+		return "VARCHAR(1024) DEFAULT NULL"
+
+	default:
+		if f.PrimaryKey {
+			// note: the default is just a last resort fallback to avoid empty
+			// string values in case the record was inserted with raw sql and
+			// it is not actually used when operating with the db abstraction
+			return "TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL"
+		}
+		if f.Default != "" {
+			return "TEXT DEFAULT '" + f.Default + "' NOT NULL"
+		}
+		return "TEXT DEFAULT NULL"
+
+	}
 }
 
 // PrepareValue implements [Field.PrepareValue] interface method.

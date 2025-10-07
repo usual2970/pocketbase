@@ -11,6 +11,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/pocketbase/core/validators"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/list"
 	"github.com/pocketbase/pocketbase/tools/types"
@@ -187,11 +188,20 @@ func (f *FileField) IsMultiple() bool {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *FileField) ColumnType(app App) string {
-	if f.IsMultiple() {
-		return "JSON DEFAULT '[]' NOT NULL"
+	switch dbadapter.GetDriverNameFromDB() {
+	case dbadapter.DBTypeMySQL:
+		if f.IsMultiple() {
+			return "JSON"
+		}
+		return "VARCHAR(255) DEFAULT '' NOT NULL"
+	default:
+		if f.IsMultiple() {
+			return "JSON DEFAULT '[]' NOT NULL"
+		}
+
+		return "TEXT DEFAULT '' NOT NULL"
 	}
 
-	return "TEXT DEFAULT '' NOT NULL"
 }
 
 // PrepareValue implements [Field.PrepareValue] interface method.

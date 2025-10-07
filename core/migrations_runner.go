@@ -248,12 +248,24 @@ func (r *MigrationsRunner) initMigrationsTable() error {
 		return nil // already inited
 	}
 
-	rawQuery := fmt.Sprintf(
-		"CREATE TABLE IF NOT EXISTS {{%s}} (file VARCHAR(255) PRIMARY KEY NOT NULL, applied INTEGER NOT NULL)",
-		r.tableName,
-	)
+	sql, err := r.app.AuxDBAdapter().CreateTableQuery(Table{
+		Table: r.tableName,
+		Columns: []Field{
+			&TextField{Name: "file", PrimaryKey: true},
+			&NumberField{Name: "applied"},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	_, err = r.app.AuxDB().NewQuery(sql).Execute()
+	if err == nil {
+		r.inited = true
+	} else {
+		return err
+	}
 
-	_, err := r.app.DB().NewQuery(rawQuery).Execute()
+	_, err = r.app.DB().NewQuery(sql).Execute()
 
 	if err == nil {
 		r.inited = true

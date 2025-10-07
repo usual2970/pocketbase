@@ -17,6 +17,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/tools/cron"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/filesystem"
 	"github.com/pocketbase/pocketbase/tools/hook"
 	"github.com/pocketbase/pocketbase/tools/logger"
@@ -83,6 +84,8 @@ type BaseApp struct {
 	nonconcurrentDB     dbx.Builder
 	auxConcurrentDB     dbx.Builder
 	auxNonconcurrentDB  dbx.Builder
+	dbAdapter           DBAdapter
+	auxDBAdapter        DBAdapter
 
 	// app event hooks
 	onBootstrap     *hook.Hook[*BootstrapEvent]
@@ -574,6 +577,22 @@ func (app *BaseApp) AuxConcurrentDB() dbx.Builder {
 // In a transaction the AuxConcurrentDB() and AuxNonconcurrentDB() refer to the same *dbx.TX instance.
 func (app *BaseApp) AuxNonconcurrentDB() dbx.Builder {
 	return app.auxNonconcurrentDB
+}
+
+// DBAdapter returns the database adapter for the main database.
+//
+// The adapter provides database-specific operations and SQL generation
+// for the current database type (SQLite, MySQL, PostgreSQL).
+func (app *BaseApp) DBAdapter() DBAdapter {
+	return app.dbAdapter
+}
+
+// AuxDBAdapter returns the database adapter for the auxiliary database.
+//
+// The adapter provides database-specific operations and SQL generation
+// for the current database type (SQLite, MySQL, PostgreSQL).
+func (app *BaseApp) AuxDBAdapter() DBAdapter {
+	return app.auxDBAdapter
 }
 
 // DataDir returns the app data directory path.
@@ -1202,7 +1221,15 @@ func (app *BaseApp) initDataDB() error {
 	}
 
 	app.concurrentDB = concurrentDB
-	app.nonconcurrentDB = nonconcurrentDB
+	if dbadapter.IsMySQL() {
+		app.nonconcurrentDB = concurrentDB
+	} else {
+		app.nonconcurrentDB = nonconcurrentDB
+	}
+
+	// Initialize database adapter for main database
+	driverName := dbadapter.GetDriverNameFromDB()
+	app.dbAdapter = GetDBAdapter(driverName, app)
 
 	return nil
 }
@@ -1254,6 +1281,10 @@ func (app *BaseApp) initAuxDB() error {
 
 	app.auxConcurrentDB = concurrentDB
 	app.auxNonconcurrentDB = nonconcurrentDB
+
+	// Initialize database adapter for auxiliary database
+	driverName := dbadapter.GetDriverNameFromDB()
+	app.auxDBAdapter = GetDBAdapter(driverName, app)
 
 	return nil
 }

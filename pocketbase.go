@@ -125,6 +125,11 @@ func NewWithConfig(config Config) *PocketBase {
 	pb.eagerParseFlags(&config)
 
 	// initialize the app instance
+	// Choose DBConnect based on env (sqlite default, mysql/postgres via DSN)
+	if config.DBConnect == nil {
+		config.DBConnect = core.BuildDBConnectFromEnv()
+	}
+
 	pb.App = core.NewBaseApp(core.BaseAppConfig{
 		IsDev:            pb.devFlag,
 		DataDir:          pb.dataDirFlag,

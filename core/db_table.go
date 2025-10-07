@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/pocketbase/dbx"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 )
 
 // TableColumns returns all column names of a single table by its name.
@@ -109,11 +110,19 @@ func (app *BaseApp) AuxHasTable(tableName string) bool {
 
 func (app *BaseApp) hasTable(db dbx.Builder, tableName string) bool {
 	var exists int
+	query := db.Select("(1)")
+	switch dbadapter.GetDriverNameFromDB() {
+	case dbadapter.DBTypeMySQL:
+		query = query.From("information_schema.tables").
+			AndWhere(dbx.HashExp{"table_schema": "pocketbase"}).
+			AndWhere(dbx.HashExp{"table_name": tableName})
+	default:
+		query = query.From("sqlite_schema").
+			AndWhere(dbx.HashExp{"type": []any{"table", "view"}}).
+			AndWhere(dbx.NewExp("LOWER([[name]])=LOWER({:tableName})", dbx.Params{"tableName": tableName}))
+	}
 
-	err := db.Select("(1)").
-		From("sqlite_schema").
-		AndWhere(dbx.HashExp{"type": []any{"table", "view"}}).
-		AndWhere(dbx.NewExp("LOWER([[name]])=LOWER({:tableName})", dbx.Params{"tableName": tableName})).
+	err := query.
 		Limit(1).
 		Row(&exists)
 

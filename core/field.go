@@ -250,3 +250,12 @@ func checkForVia(value any) error {
 func noopSetter(record *Record, raw any) {
 	// do nothing
 }
+
+func IsTextType(fieldType string) bool {
+	return fieldType == FieldTypeText ||
+		fieldType == FieldTypeEditor ||
+		fieldType == FieldTypeEmail ||
+		fieldType == FieldTypeURL ||
+		fieldType == FieldTypeEmail ||
+		fieldType == FieldTypeJSON
+}

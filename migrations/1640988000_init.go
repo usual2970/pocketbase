@@ -34,26 +34,33 @@ func init() {
 
 		// -----------------------------------------------------------
 
-		_, execerr := txApp.DB().NewQuery(`
-			CREATE TABLE {{_collections}} (
-				[[id]]         TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL,
-				[[system]]     BOOLEAN DEFAULT FALSE NOT NULL,
-				[[type]]       TEXT DEFAULT "base" NOT NULL,
-				[[name]]       TEXT UNIQUE NOT NULL,
-				[[fields]]     JSON DEFAULT "[]" NOT NULL,
-				[[indexes]]    JSON DEFAULT "[]" NOT NULL,
-				[[listRule]]   TEXT DEFAULT NULL,
-				[[viewRule]]   TEXT DEFAULT NULL,
-				[[createRule]] TEXT DEFAULT NULL,
-				[[updateRule]] TEXT DEFAULT NULL,
-				[[deleteRule]] TEXT DEFAULT NULL,
-				[[options]]    JSON DEFAULT "{}" NOT NULL,
-				[[created]]    TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%fZ')) NOT NULL,
-				[[updated]]    TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%fZ')) NOT NULL
-			);
-
-			CREATE INDEX IF NOT EXISTS idx__collections_type on {{_collections}} ([[type]]);
-		`).Execute()
+		sql, err := txApp.AuxDBAdapter().CreateTableQuery(core.Table{
+			Table: "_collections",
+			Columns: []core.Field{
+				&core.TextField{Name: "id", PrimaryKey: true},
+				&core.BoolField{Name: "system"},
+				&core.TextField{Name: "type"},
+				&core.TextField{Name: "name"},
+				&core.JSONField{Name: "fields"},
+				&core.JSONField{Name: "indexes"},
+				&core.TextField{Name: "listRule"},
+				&core.TextField{Name: "viewRule"},
+				&core.TextField{Name: "createRule"},
+				&core.TextField{Name: "updateRule"},
+				&core.TextField{Name: "deleteRule"},
+				&core.JSONField{Name: "options"},
+				&core.TextField{Name: "created"},
+				&core.TextField{Name: "updated"},
+			},
+			Indexes: []core.Index{
+				{Name: "idx_collections_name", Columns: []string{"name"}, Unique: true},
+				{Name: "idx_collections_type", Columns: []string{"type"}},
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("_collections exec error: %w", err)
+		}
+		_, execerr := txApp.DB().NewQuery(sql).Execute()
 		if execerr != nil {
 			return fmt.Errorf("_collections exec error: %w", execerr)
 		}
@@ -105,14 +112,23 @@ func init() {
 }
 
 func createParamsTable(txApp core.App) error {
-	_, execErr := txApp.DB().NewQuery(`
-		CREATE TABLE {{_params}} (
-			[[id]]      TEXT PRIMARY KEY DEFAULT ('r'||lower(hex(randomblob(7)))) NOT NULL,
-			[[value]]   JSON DEFAULT NULL,
-			[[created]] TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%fZ')) NOT NULL,
-			[[updated]] TEXT DEFAULT (strftime('%Y-%m-%d %H:%M:%fZ')) NOT NULL
-		);
-	`).Execute()
+
+	sql, err := txApp.AuxDBAdapter().CreateTableQuery(core.Table{
+		Table: "_params",
+		Columns: []core.Field{
+			&core.TextField{Name: "id", PrimaryKey: true},
+			&core.JSONField{Name: "value"},
+			&core.TextField{Name: "created"},
+			&core.TextField{Name: "updated"},
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("_params exec error: %w", err)
+	}
+	_, execErr := txApp.AuxDB().NewQuery(sql).Execute()
+	if execErr != nil {
+		return fmt.Errorf("_params exec error: %w", execErr)
+	}
 
 	return execErr
 }

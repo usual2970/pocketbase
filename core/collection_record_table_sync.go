@@ -8,6 +8,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/dbx"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/dbutils"
 	"github.com/pocketbase/pocketbase/tools/security"
 )
@@ -310,7 +311,13 @@ func dropCollectionIndexes(app App, collection *Collection) error {
 				continue
 			}
 
-			_, err := txApp.DB().NewQuery(fmt.Sprintf("DROP INDEX IF EXISTS [[%s]]", parsed.IndexName)).Execute()
+			adapter := GetDBAdapter(dbadapter.GetDriverNameFromDB(), txApp)
+			query, err := adapter.DropIndexQuery(collection.Name, parsed.IndexName)
+			if err != nil {
+				return err
+			}
+
+			_, err = txApp.DB().NewQuery(query).Execute()
 			if err != nil {
 				return err
 			}
@@ -344,6 +351,17 @@ func createCollectionIndexes(app App, collection *Collection) error {
 					"Invalid CREATE INDEX expression.",
 				)
 				continue
+			}
+
+			for i, col := range parsed.Columns {
+				field := collection.Fields.GetByName(col.Name)
+				if field == nil {
+					continue
+				}
+				if IsTextType(field.Type()) && dbadapter.IsMySQL() {
+					col.Length = 191
+				}
+				parsed.Columns[i] = col
 			}
 
 			if _, err := txApp.DB().NewQuery(parsed.Build()).Execute(); err != nil {
