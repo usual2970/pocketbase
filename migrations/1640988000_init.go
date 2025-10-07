@@ -125,7 +125,7 @@ func createParamsTable(txApp core.App) error {
 	if err != nil {
 		return fmt.Errorf("_params exec error: %w", err)
 	}
-	_, execErr := txApp.AuxDB().NewQuery(sql).Execute()
+	_, execErr := txApp.DB().NewQuery(sql).Execute()
 	if execErr != nil {
 		return fmt.Errorf("_params exec error: %w", execErr)
 	}
