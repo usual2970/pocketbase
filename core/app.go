@@ -89,7 +89,7 @@ type App interface {
 	Settings() *Settings
 
 	// Store returns the app runtime store.
-	Store() *store.Store[string, any]
+	Store() store.Storer[string, any]
 
 	// Cron returns the app cron instance.
 	Cron() *cron.Cron

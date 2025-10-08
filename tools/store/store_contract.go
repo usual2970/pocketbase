@@ -60,8 +60,23 @@ type Storer[K comparable, T any] interface {
 	Reset(newData map[K]T)
 }
 
+type Config struct {
+	RedisKeyPrefix string
+}
+type Option func(*Config)
+
+func WithRedisKeyPrefix(prefix string) Option {
+	return func(c *Config) {
+		c.RedisKeyPrefix = prefix
+	}
+}
+
 // New creates a new Store[T] instance with a shallow copy of the provided data (if any).
-func NewGeneral[K comparable, T any](data map[K]T) Storer[K, T] {
+func NewGeneral[K comparable, T any](data map[K]T, opts ...Option) Storer[K, T] {
+	config := &Config{}
+	for _, opt := range opts {
+		opt(config)
+	}
 	storeType := os.Getenv("PB_STORE_TYPE")
 	switch storeType {
 	case "redis":
@@ -80,7 +95,7 @@ func NewGeneral[K comparable, T any](data map[K]T) Storer[K, T] {
 			Addr:     addr,
 			Password: password,
 			DB:       dbInt,
-		}), os.Getenv("PB_STORE_TYPE"))
+		}), config.RedisKeyPrefix)
 	default:
 		return New[K, T](data)
 	}

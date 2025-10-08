@@ -75,7 +75,7 @@ var _ App = (*BaseApp)(nil)
 type BaseApp struct {
 	config              *BaseAppConfig
 	txInfo              *TxAppInfo
-	store               *store.Store[string, any]
+	store               store.Storer[string, any]
 	cron                *cron.Cron
 	settings            *Settings
 	subscriptionsBroker *subscriptions.Broker
@@ -201,7 +201,7 @@ type BaseApp struct {
 func NewBaseApp(config BaseAppConfig) *BaseApp {
 	app := &BaseApp{
 		settings:            newDefaultSettings(),
-		store:               store.New[string, any](nil),
+		store:               store.NewGeneral[string, any](nil, store.WithRedisKeyPrefix("pb:app")),
 		cron:                cron.New(),
 		subscriptionsBroker: subscriptions.NewBroker(),
 		config:              &config,
@@ -619,7 +619,7 @@ func (app *BaseApp) Settings() *Settings {
 }
 
 // Store returns the app runtime store.
-func (app *BaseApp) Store() *store.Store[string, any] {
+func (app *BaseApp) Store() store.Storer[string, any] {
 	return app.store
 }
 
