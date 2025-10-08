@@ -6,6 +6,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/pocketbase/dbx"
+	dbadapter "github.com/pocketbase/pocketbase/tools/db-adapter"
 	"github.com/pocketbase/pocketbase/tools/list"
 	"github.com/pocketbase/pocketbase/tools/types"
 )
@@ -150,6 +151,12 @@ func (f *RelationField) IsMultiple() bool {
 
 // ColumnType implements [Field.ColumnType] interface method.
 func (f *RelationField) ColumnType(app App) string {
+	if dbadapter.IsMySQL() {
+		if f.IsMultiple() {
+			return "JSON"
+		}
+		return "VARCHAR(1024) DEFAULT '' NOT NULL"
+	}
 	if f.IsMultiple() {
 		return "JSON DEFAULT '[]' NOT NULL"
 	}
