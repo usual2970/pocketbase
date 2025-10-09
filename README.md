@@ -1,105 +1,142 @@
-<p align="center">
-    <a href="https://pocketbase.io" target="_blank" rel="noopener">
-        <img src="https://i.imgur.com/5qimnm5.png" alt="PocketBase - open source backend in 1 file" />
-    </a>
-</p>
+# PocketBase (fork with distributed realtime and multi-database support)
 
-<p align="center">
-    <a href="https://github.com/pocketbase/pocketbase/actions/workflows/release.yaml" target="_blank" rel="noopener"><img src="https://github.com/pocketbase/pocketbase/actions/workflows/release.yaml/badge.svg" alt="build" /></a>
-    <a href="https://github.com/pocketbase/pocketbase/releases" target="_blank" rel="noopener"><img src="https://img.shields.io/github/release/pocketbase/pocketbase.svg" alt="Latest releases" /></a>
-    <a href="https://pkg.go.dev/github.com/pocketbase/pocketbase" target="_blank" rel="noopener"><img src="https://godoc.org/github.com/pocketbase/pocketbase?status.svg" alt="Go package documentation" /></a>
-</p>
+This repository is a community-maintained fork of `pocketbase/pocketbase` that adds:
 
-[PocketBase](https://pocketbase.io) is an open source Go backend that includes:
+- Distributed realtime subscriptions via Redis Pub/Sub (multi-node ready)
+- Multi-database support: MySQL 8+, PostgreSQL 13+, and SQLite (default)
+- Ready-to-use examples and docker-compose for local development
 
-- embedded database (_SQLite_) with **realtime subscriptions**
-- built-in **files and users management**
-- convenient **Admin dashboard UI**
-- and simple **REST-ish API**
+All core PocketBase features remain available: embedded database (SQLite), REST API, admin UI, file and user management, JS VM extensions, etc.
 
-**For documentation and examples, please visit https://pocketbase.io/docs.**
+For upstream docs, see https://pocketbase.io/docs.
 
-> [!WARNING]
-> Please keep in mind that PocketBase is still under active development
-> and therefore full backward compatibility is not guaranteed before reaching v1.0.0.
+## What's included in this fork
 
-## API SDK clients
+- Added
+  - Distributed realtime: cross-instance broadcasting through Redis Pub/Sub
+  - Multi-database support beyond SQLite (MySQL, PostgreSQL)
+  - Environment variables and docker-compose samples for quick setup
+- Unchanged (compatibility goals)
+  - Default single-node behavior and upstream APIs
+  - Backward-compatible usage if you don’t enable Redis or external DBs
 
-The easiest way to interact with the PocketBase Web APIs is to use one of the official SDK clients:
+## Quick Start
 
-- **JavaScript - [pocketbase/js-sdk](https://github.com/pocketbase/js-sdk)** (_Browser, Node.js, React Native_)
-- **Dart - [pocketbase/dart-sdk](https://github.com/pocketbase/dart-sdk)** (_Web, Mobile, Desktop, CLI_)
+### A) Single node (SQLite, no dependencies)
 
-You could also check the recommendations in https://pocketbase.io/docs/how-to-use/.
+```bash
+# Go 1.23+
+go mod tidy
 
+# Run example app (same style as upstream)
+cd examples/base
+GOOS=$(go env GOOS) GOARCH=$(go env GOARCH) CGO_ENABLED=0 go build
+./base serve
+```
 
-## Overview
+Access:
+- Admin/API: http://localhost:8090
+- Health: http://localhost:8090/api/health
 
-### Use as standalone app
+### B) Multi-database + Redis (docker-compose)
 
-You could download the prebuilt executable for your platform from the [Releases page](https://github.com/pocketbase/pocketbase/releases).
-Once downloaded, extract the archive and run `./pocketbase serve` in the extracted directory.
+```bash
+# Start MySQL, PostgreSQL and Redis services
+docker-compose up -d
 
-The prebuilt executables are based on the [`examples/base/main.go` file](https://github.com/pocketbase/pocketbase/blob/master/examples/base/main.go) and comes with the JS VM plugin enabled by default which allows to extend PocketBase with JavaScript (_for more details please refer to [Extend with JavaScript](https://pocketbase.io/docs/js-overview/)_).
+# Prepare environment variables
+cp env.example .env
+# Edit .env to select DB and (optionally) enable Redis-based features
 
-### Use as a Go framework/toolkit
+# Example: MySQL
+export PB_DB_TYPE=mysql
+export PB_DB_DSN="root:rootpassword@tcp(localhost:3306)/pocketbase?parseTime=true&charset=utf8mb4&loc=Local"
 
-PocketBase is distributed as a regular Go library package which allows you to build
-your own custom app specific business logic and still have a single portable executable at the end.
+# Start the app (example entrypoint)
+go run examples/base/main.go serve
+```
 
-Here is a minimal example:
+## Configuration
 
-0. [Install Go 1.23+](https://go.dev/doc/install) (_if you haven't already_)
+You can configure the app via environment variables (see `env.example`):
 
-1. Create a new project directory with the following `main.go` file inside it:
-    ```go
-    package main
+- Database
+  - `PB_DB_TYPE`: `sqlite` | `mysql` | `postgres`
+  - `PB_DB_DSN`:
+    - MySQL: `user:pass@tcp(host:port)/db?parseTime=true&charset=utf8mb4&loc=Local`
+    - PostgreSQL: `postgres://user:pass@host:port/db?sslmode=disable&search_path=public`
+    - SQLite: usually not required (defaults used)
+  - Pool (optional): `PB_DB_MAX_OPEN`, `PB_DB_MAX_IDLE`, `PB_DB_CONN_MAX_LIFETIME`
+- Directories (optional): `PB_DATA_DIR`, `PB_PUBLIC_DIR`
+- Distributed features (optional):
+  - `PB_REDIS_URL`: e.g. `redis://localhost:6379/0` or `redis://:password@localhost:6379/0`
+  - `PB_REALTIME_DISTRIBUTED=true` to enable distributed realtime
+  - `PB_RATELIMIT_DISTRIBUTED=true` if you enable distributed rate limiting
 
-    import (
-        "log"
+## Distributed Realtime (Redis)
 
-        "github.com/pocketbase/pocketbase"
-        "github.com/pocketbase/pocketbase/core"
-    )
+Goal: make SSE-based realtime events work seamlessly across multiple app instances. Any event produced on one instance is propagated via Redis Pub/Sub and delivered to subscribers connected to other instances.
 
-    func main() {
-        app := pocketbase.New()
+Recommended topology: N application instances + 1 Redis (or Redis cluster).
 
-        app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-            // registers new "GET /hello" route
-            se.Router.GET("/hello", func(re *core.RequestEvent) error {
-                return re.String(200, "Hello world!")
-            })
+Steps:
+1) Start Redis (docker-compose provides a service).
+2) Set env vars:
+   ```bash
+   export PB_REDIS_URL=redis://localhost:6379/0
+   export PB_REALTIME_DISTRIBUTED=true
+   ```
+3) Run multiple instances and verify that updates on one node are received by subscribers connected to other nodes.
 
-            return se.Next()
-        })
+Notes:
+- Redis Pub/Sub is best-effort and non-durable. If you need guaranteed delivery/persistence, consider an additional queue or event log.
+- For production, use Redis Sentinel/Cluster for HA, and secure your Redis network access and credentials.
 
-        if err := app.Start(); err != nil {
-            log.Fatal(err)
-        }
-    }
-    ```
+## Multi-Database Support
 
-2. To init the dependencies, run `go mod init myapp && go mod tidy`.
+Choose your database by setting `PB_DB_TYPE` and `PB_DB_DSN`.
 
-3. To start the application, run `go run main.go serve`.
+- SQLite (default, zero deps)
+- MySQL 8+:
+  ```bash
+  export PB_DB_TYPE=mysql
+  export PB_DB_DSN="root:rootpassword@tcp(localhost:3306)/pocketbase?parseTime=true&charset=utf8mb4&loc=Local"
+  ```
+- PostgreSQL 13+:
+  ```bash
+  export PB_DB_TYPE=postgres
+  export PB_DB_DSN="postgres://pocketbase:pocketbase123@localhost:5432/pocketbase?sslmode=disable&search_path=public"
+  ```
 
-4. To build a statically linked executable, you can run `CGO_ENABLED=0 go build` and then start the created executable with `./myapp serve`.
+Recommendations:
+- Tune pool settings: `PB_DB_MAX_OPEN`, `PB_DB_MAX_IDLE`, `PB_DB_CONN_MAX_LIFETIME`.
+- Validate connectivity with the health endpoint: `curl http://localhost:8090/api/health`.
 
-_For more details please refer to [Extend with Go](https://pocketbase.io/docs/go-overview/)._
+## Testing
 
-### Building and running the repo main.go example
+```bash
+# Run all tests
+go test ./...
 
-To build the minimal standalone executable, like the prebuilt ones in the releases page, you can simply run `go build` inside the `examples/base` directory:
+# Optionally target API/realtime packages
+go test ./apis -run Realtime -v
+```
 
-0. [Install Go 1.23+](https://go.dev/doc/install) (_if you haven't already_)
-1. Clone/download the repo
-2. Navigate to `examples/base`
-3. Run `GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build`
-   (_https://go.dev/doc/install/source#environment_)
-4. Start the created executable by running `./base serve`.
+If using docker-compose services, verify they are up:
+```bash
+docker-compose ps
+```
 
-Note that the supported build targets by the pure Go SQLite driver at the moment are:
+## Migration & Compatibility
+
+- Existing PocketBase users can adopt this fork without changes in single-node mode.
+- To enable distributed realtime, add Redis and set `PB_REDIS_URL` + `PB_REALTIME_DISTRIBUTED=true`.
+- To switch databases, set `PB_DB_TYPE`/`PB_DB_DSN` and migrate/import your data.
+- API behavior aims to remain compatible with upstream (unless otherwise documented).
+
+## Build Targets (SQLite driver)
+
+When building statically with the pure Go SQLite driver, supported targets include (subject to upstream driver support):
 
 ```
 darwin  amd64
@@ -119,37 +156,15 @@ windows amd64
 windows arm64
 ```
 
-### Testing
-
-PocketBase comes with mixed bag of unit and integration tests.
-To run them, use the standard `go test` command:
-
-```sh
-go test ./...
-```
-
-Check also the [Testing guide](http://pocketbase.io/docs/testing) to learn how to write your own custom application tests.
-
 ## Security
 
-If you discover a security vulnerability within PocketBase, please send an e-mail to **support at pocketbase.io**.
+If you discover a security vulnerability, please open a private report or contact the maintainers. We will address issues promptly and credit reporters in release notes.
 
-All reports will be promptly addressed and you'll be credited in the fix release notes.
+## License
 
-## Contributing
+This fork and the upstream PocketBase are licensed under the MIT License (see `LICENSE.md`).
 
-PocketBase is free and open source project licensed under the [MIT License](LICENSE.md).
-You are free to do whatever you want with it, even offering it as a paid service.
+## Credits
 
-You could help continuing its development by:
-
-- [Contribute to the source code](CONTRIBUTING.md)
-- [Suggest new features and report issues](https://github.com/pocketbase/pocketbase/issues)
-
-PRs for new OAuth2 providers, bug fixes, code optimizations and documentation improvements are more than welcome.
-
-But please refrain creating PRs for _new features_ without previously discussing the implementation details.
-PocketBase has a [roadmap](https://github.com/orgs/pocketbase/projects/2) and I try to work on issues in specific order and such PRs often come in out of nowhere and skew all initial planning with tedious back-and-forth communication.
-
-Don't get upset if I close your PR, even if it is well executed and tested. This doesn't mean that it will never be merged.
-Later we can always refer to it and/or take pieces of your implementation when the time comes to work on the issue (don't worry you'll be credited in the release notes).
+- Upstream: https://github.com/pocketbase/pocketbase
+- Thanks to all contributors of the original project.
