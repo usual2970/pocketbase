@@ -145,9 +145,15 @@ func (app *BaseApp) SyncRecordTableSchema(newCollection *Collection, oldCollecti
 
 	// run optimize per the SQLite recommendations
 	// (https://www.sqlite.org/pragma.html#pragma_optimize)
-	_, optimizeErr := app.NonconcurrentDB().NewQuery("PRAGMA optimize").Execute()
+	adapter := GetDBAdapter(dbadapter.GetDriverNameFromDB(), app)
+	optimizeQuery, err := adapter.DBOptimizeQuery()
+	if err != nil {
+		app.Logger().Warn("Skipping optimization after record table sync", slog.String("error", err.Error()))
+		return nil
+	}
+	_, optimizeErr := app.NonconcurrentDB().NewQuery(optimizeQuery).Execute()
 	if optimizeErr != nil {
-		app.Logger().Warn("Failed to run PRAGMA optimize after record table sync", slog.String("error", optimizeErr.Error()))
+		app.Logger().Warn("Failed to run optimization after record table sync", slog.String("error", optimizeErr.Error()))
 	}
 
 	return nil

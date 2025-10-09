@@ -65,3 +65,7 @@ func (a *SQLiteDBAdapter) DropIndexQuery(schemaName string, indexName string) (s
 func (a *SQLiteDBAdapter) FormatDateQuery(fieleName, format, as string) string {
 	return fmt.Sprintf("strftime('%s', `%s`) as `%s`", format, fieleName, as)
 }
+
+func (a *SQLiteDBAdapter) DBOptimizeQuery() (string, error) {
+	return "PRAGMA optimize", nil
+}

@@ -55,3 +55,7 @@ func (a *PostgreSQLDBAdapter) DropIndexQuery(schemaName string, indexName string
 func (a *PostgreSQLDBAdapter) FormatDateQuery(fieleName, format, as string) string {
 	return fmt.Sprintf("DATE_TRUNC('%s', \"%s\") as \"%s\"", format, fieleName, as)
 }
+
+func (a *PostgreSQLDBAdapter) DBOptimizeQuery() (string, error) {
+	return "", fmt.Errorf("PostgreSQL does not require manual table optimization")
+}

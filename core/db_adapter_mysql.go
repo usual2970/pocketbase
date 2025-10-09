@@ -83,3 +83,7 @@ func (a *MySQLDBAdapter) DropIndexQuery(schemaName string, indexName string) (st
 func (a *MySQLDBAdapter) FormatDateQuery(fieleName, format, as string) string {
 	return fmt.Sprintf("DATE_FORMAT(`%s`, '%s') as `%s`", fieleName, format, as)
 }
+
+func (a *MySQLDBAdapter) DBOptimizeQuery() (string, error) {
+	return "", fmt.Errorf("MySQL does not require manual database optimization")
+}
