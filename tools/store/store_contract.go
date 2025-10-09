@@ -1,12 +1,9 @@
 package store
 
 import (
-	"net/url"
 	"os"
-	"strconv"
-	"strings"
 
-	"github.com/redis/go-redis/v9"
+	redisutil "github.com/pocketbase/pocketbase/tools/redis"
 )
 
 type Storer[K comparable, T any] interface {
@@ -81,21 +78,7 @@ func NewGeneral[K comparable, T any](data map[K]T, opts ...Option) Storer[K, T] 
 	switch storeType {
 	case "redis":
 
-		redisURL := os.Getenv("PB_REDIS_URL")
-		parsedURL, err := url.Parse(redisURL)
-		if err != nil {
-			panic(err)
-		}
-		password, _ := parsedURL.User.Password()
-		addr := parsedURL.Host
-		db := parsedURL.Path
-		dbInt, _ := strconv.Atoi(strings.TrimPrefix(db, "/"))
-
-		return NewRedisStore[K, T](redis.NewClient(&redis.Options{
-			Addr:     addr,
-			Password: password,
-			DB:       dbInt,
-		}), config.RedisKeyPrefix)
+		return NewRedisStore[K, T](redisutil.GetClient(), config.RedisKeyPrefix)
 	default:
 		return New[K, T](data)
 	}

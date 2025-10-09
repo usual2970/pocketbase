@@ -1,13 +1,18 @@
 package apis
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/tools/hook"
+	redisutil "github.com/pocketbase/pocketbase/tools/redis"
 	"github.com/pocketbase/pocketbase/tools/store"
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -145,6 +150,15 @@ func checkRateLimit(e *core.RequestEvent, rtId string, rule core.RateLimitRule) 
 		}
 	}
 
+	// Check if distributed mode is enabled
+	useDistributed := os.Getenv("PB_REDIS_URL") != ""
+
+	if useDistributed {
+		// Use distributed rate limiter with Redis
+		return checkDistributedRateLimit(e, rtId, rule)
+	}
+
+	// Use local in-memory rate limiter
 	rateLimiters := e.App.Store().GetOrSet(rateLimitersStoreKey, func() any {
 		return initRateLimitersStore(e.App)
 	}).(*store.Store[string, *rateLimiter])
@@ -168,6 +182,30 @@ func checkRateLimit(e *core.RequestEvent, rtId string, rule core.RateLimitRule) 
 	}
 
 	if !rt.isAllowed(key) {
+		return e.TooManyRequestsError("", errors.New("triggered rate limit rule: "+rule.String()))
+	}
+
+	return nil
+}
+
+func checkDistributedRateLimit(e *core.RequestEvent, rtId string, rule core.RateLimitRule) error {
+	// Use singleton Redis client
+	redisClient := redisutil.GetClient()
+
+	if redisClient == nil {
+		e.App.Logger().Warn("Redis client not available, skipping distributed rate limiting")
+		return nil // Fail open on Redis connection issues
+	}
+
+	drl := newDistributedRateLimiter(redisClient, rule.MaxRequests, rule.Duration, rule.Duration+1800, rtId)
+
+	key := e.RealIP()
+	if key == "" {
+		e.App.Logger().Warn("Empty rate limit client key")
+		return nil
+	}
+
+	if !drl.isAllowed(key) {
 		return e.TooManyRequestsError("", errors.New("triggered rate limit rule: "+rule.String()))
 	}
 
@@ -354,4 +392,59 @@ func (l *fixedWindow) consume() bool {
 	}
 
 	return false
+}
+
+// -------------------------------------------------------------------
+// Distributed Rate Limiter with Redis
+// -------------------------------------------------------------------
+
+// rateLimiterInterface defines the common interface for rate limiters
+type rateLimiterInterface interface {
+	isAllowed(key string) bool
+	clean()
+}
+
+// distributedRateLimiter implements rate limiting using Redis
+type distributedRateLimiter struct {
+	redis             *redis.Client
+	ctx               context.Context
+	maxAllowed        int
+	interval          int64
+	minDeleteInterval int64
+	keyPrefix         string
+}
+
+func newDistributedRateLimiter(redisClient *redis.Client, maxAllowed int, intervalInSec int64, minDeleteIntervalInSec int64, keyPrefix string) *distributedRateLimiter {
+	return &distributedRateLimiter{
+		redis:             redisClient,
+		ctx:               context.Background(),
+		maxAllowed:        maxAllowed,
+		interval:          intervalInSec,
+		minDeleteInterval: minDeleteIntervalInSec,
+		keyPrefix:         keyPrefix,
+	}
+}
+
+func (drl *distributedRateLimiter) isAllowed(key string) bool {
+	redisKey := fmt.Sprintf("pb:ratelimit:%s:%s", drl.keyPrefix, key)
+	nowUnix := time.Now().Unix()
+	windowKey := fmt.Sprintf("%s:%d", redisKey, nowUnix/drl.interval)
+
+	// Use Redis INCR to atomically increment the counter
+	pipe := drl.redis.Pipeline()
+	incrCmd := pipe.Incr(drl.ctx, windowKey)
+	pipe.Expire(drl.ctx, windowKey, time.Duration(drl.interval+60)*time.Second)
+	_, err := pipe.Exec(drl.ctx)
+
+	if err != nil {
+		// On error, allow the request (fail open)
+		return true
+	}
+
+	count := incrCmd.Val()
+	return count <= int64(drl.maxAllowed)
+}
+
+func (drl *distributedRateLimiter) clean() {
+	// Redis automatically handles cleanup via TTL, no need for manual cleanup
 }
